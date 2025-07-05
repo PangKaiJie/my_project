@@ -85,7 +85,10 @@ def main():
                         "--player1",
                         "human",
                         "--player2",
-                        "snake_ai",
+                        "random",  # 使用随机AI
+                        "--no-render",  # 命令行模式不需要渲染
+                        "--initial-length", "1",  #蛇初始长度为1
+                        "--food-count", "5"   #图中最多有5个食物
                     ]
                 )
                 break

@@ -14,7 +14,7 @@ from games.snake import SnakeEnv
 
 # 导入智能体模块
 from agents import (
-    HumanAgent, RandomBot, MinimaxBot, MCTSBot, RLBot, BehaviorTreeBot
+    HumanAgent, RandomBot, MinimaxBot, MCTSBot, RLBot, BehaviorTreeBot, SnakeAI
 )
 
 
@@ -29,7 +29,8 @@ def create_agent(agent_type: str, player_id: int, name: str = None) -> Any:
         'minimax': MinimaxBot,
         'mcts': MCTSBot,
         'rl': RLBot,
-        'behavior_tree': BehaviorTreeBot
+        'behavior_tree': BehaviorTreeBot,
+        'snake_ai': SnakeAI
     }
     
     if agent_type not in agent_map:
@@ -66,42 +67,67 @@ def play_single_game(env: Any, agent1: Any, agent2: Any, render: bool = True) ->
     step_count = 0
     max_steps = 1000
     
-    while not env.is_terminal() and step_count < max_steps:
-        current_agent = agents[env.game.current_player]
-        
-        print(f"\n--- 第 {step_count + 1} 步 ---")
-        print(f"当前玩家: {current_agent.name}")
-        
-        # 获取动作
-        action = current_agent.get_action(observation, env)
-        print(f"选择动作: {action}")
-        
-        # 执行动作
-        observation, reward, terminated, truncated, info = env.step(action)
-        
-        if render:
-            env.render()
-            time.sleep(0.5)  # 添加延迟以便观察
-        
-        step_count += 1
-        
-        if terminated or truncated:
+    while True:  # 改为无限循环，内部处理退出条件
+        if env.is_terminal():
+            print("\n游戏已结束！")
+            break
+            
+        try:
+            current_agent = agents[env.game.current_player]
+            print(f"\n--- 第 {step_count + 1} 步 ---")
+            print(f"当前玩家: {current_agent.name}")
+            action = current_agent.get_action(observation, env)
+            
+            # 执行动作前再次检查
+            if env.is_terminal():
+                break
+                
+            observation, reward, terminated, truncated, info = env.step(action)
+            step_count += 1  # 在这里增加步数计数器
+            
+            # 执行后立即检查
+            if env.is_terminal():
+                print("\n游戏已结束！")
+                break
+                
+            if render:
+                env.render()
+                time.sleep(0.3)
+                
+        except KeyboardInterrupt:
             break
     
     # 获取游戏结果
     winner = env.get_winner()
-    if winner == 1:
-        result = "玩家1获胜"
-        agent1.update_stats('win', 0)
-        agent2.update_stats('lose', 0)
-    elif winner == 2:
-        result = "玩家2获胜"
-        agent1.update_stats('lose', 0)
-        agent2.update_stats('win', 0)
+    game = env.game  # 获取游戏实例
+    if hasattr(game, 'alive1') and hasattr(game, 'alive2'):
+        # 贪吃蛇类游戏
+        if game.alive1 and not game.alive2:
+            result = "玩家1获胜"
+            agent1.update_stats('win', 0)
+            agent2.update_stats('lose', 0)
+        elif game.alive2 and not game.alive1:
+            result = "玩家2获胜"
+            agent1.update_stats('lose', 0)
+            agent2.update_stats('win', 0)
+        else:
+            result = "平局"
+            agent1.update_stats('draw', 0)
+            agent2.update_stats('draw', 0)
     else:
-        result = "平局"
-        agent1.update_stats('draw', 0)
-        agent2.update_stats('draw', 0)
+        # 五子棋类游戏
+        if winner == 1:
+            result = "玩家1获胜"
+            agent1.update_stats('win', 0)
+            agent2.update_stats('lose', 0)
+        elif winner == 2:
+            result = "玩家2获胜"
+            agent1.update_stats('lose', 0)
+            agent2.update_stats('win', 0)
+        else:
+            result = "平局"
+            agent1.update_stats('draw', 0)
+            agent2.update_stats('draw', 0)
     
     print(f"\n=== 游戏结束 ===")
     print(f"结果: {result}")
@@ -203,7 +229,7 @@ def main():
                        choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree'],
                        help='玩家1类型')
     parser.add_argument('--player2', type=str, default='random',
-                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree'],
+                       choices=['human', 'random', 'minimax', 'mcts', 'rl', 'behavior_tree', 'snake_ai'],
                        help='玩家2类型')
     parser.add_argument('--name1', type=str, help='玩家1名称')
     parser.add_argument('--name2', type=str, help='玩家2名称')

@@ -4,8 +4,10 @@
 """
 
 import time
+import sys
 from typing import Dict, List, Tuple, Any, Optional
 from ..base_agent import BaseAgent
+from games.snake import SnakeEnv
 
 
 class HumanAgent(BaseAgent):
@@ -58,35 +60,34 @@ class HumanAgent(BaseAgent):
     
     def _get_human_input(self, valid_actions: List[Any], env: Any) -> Any:
         """获取人类输入"""
-        print("当前棋盘：")
-        env.render()
-        print(f"可选动作: {valid_actions}")
-        while True:
-            try:
-                move = input(f"玩家{self.player_id}请输入落子位置(如 0,0): ")
-                row, col = map(int, move.strip().split(','))
-                if (row, col) in valid_actions:
-                    return (row, col)
+        if isinstance(env, SnakeEnv):  # 贪吃蛇特殊处理
+            print("使用方向键控制: [w]上 [s]下 [a]左 [d]右")
+            while True:
+                key = input("输入方向(w/s/a/d): ").lower()
+                if key == 'w':
+                    return (-1, 0)
+                elif key == 's':
+                    return (1, 0)
+                elif key == 'a':
+                    return (0, -1)
+                elif key == 'd':
+                    return (0, 1)
                 else:
+                    print("无效输入，请使用 w/s/a/d")
+    
+        else:  # 其他游戏保持原逻辑
+            print("当前棋盘：")
+            env.render()
+            print(f"可选动作: {valid_actions}")
+            while True:
+                try:
+                    move = input(f"玩家{self.player_id}请输入落子位置(如 0,0): ")
+                    row, col = map(int, move.replace("，", ",").strip().split(','))
+                    if (row, col) in valid_actions:
+                        return (row, col)
                     print("无效位置，请重新输入。")
-            except Exception:
-                # 根据游戏类型获取不同的输入
-                if hasattr(env, 'board_size'):  # 五子棋
-                    action = self._get_gomoku_input(env.board_size)
-                else:
-                    # 默认输入格式
-                    action = self._get_default_input(valid_actions)
-                
-                # 验证输入
-                if action in valid_actions:
-                    return action
-                else:
-                    print(f"无效动作: {action}")
-                    print("请重新输入")
-                    
-            except (ValueError, IndexError) as e:
-                print(f"输入错误: {e}")
-                print("请重新输入")
+                except (ValueError, IndexError):
+                    print("输入格式错误，请使用英文逗号如 0,0")
     
     def _get_gomoku_input(self, board_size: int) -> Tuple[int, int]:
         """获取五子棋输入"""

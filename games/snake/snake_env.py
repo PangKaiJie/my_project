@@ -4,6 +4,8 @@
 """
 
 import numpy as np
+import os
+import time
 from typing import Dict, List, Tuple, Any, Optional
 from games.base_env import BaseEnv
 from games.snake.snake_game import SnakeGame
@@ -87,3 +89,52 @@ class SnakeEnv(BaseEnv):
         cloned_env = SnakeEnv(self.board_size)
         cloned_env.game = cloned_game
         return cloned_env 
+    
+    def render(self, mode='human'):
+        if mode != 'human':
+            return
+        
+        # 获取游戏状态
+        state = self.game.get_state()
+        snake1 = state['snake1']  # 玩家1的蛇
+        snake2 = state['snake2']  # 玩家2的蛇
+        foods = state['foods']
+        board_size = self.board_size
+        
+        # 打印游戏信息
+        print(f"=== 贪吃蛇 (棋盘大小: {board_size}x{board_size}) ===")
+        print(f"玩家蛇长度: {len(snake1)} | AI蛇长度: {len(snake2)} | 食物数量: {len(foods)}")
+        print("控制: [W]上 [S]下 [A]左 [D]右")
+        
+        # 绘制顶部边界
+        print("+" + "-" * (board_size * 2) + "+")
+        
+        # 绘制游戏区域
+        for y in range(board_size):
+            row = "|"
+            for x in range(board_size):
+                pos = (y, x)
+                if pos == snake1[0]:  # 玩家蛇头
+                    row += "●"  # 实心圆代表玩家蛇头
+                elif pos in snake1[1:]:  # 玩家蛇身
+                    row += "○"  # 空心圆代表玩家蛇身
+                elif pos == snake2[0]:  # AI蛇头
+                    row += "▲"  # 三角形代表AI蛇头
+                elif pos in snake2[1:]:  # AI蛇身
+                    row += "△"  # 空心三角形代表AI蛇身
+                elif pos in foods:  # 食物
+                    row += "★"
+                else:  # 空地
+                    row += " "
+                row += " "  # 添加间距
+            row += "|"
+            print(row)
+        
+        # 绘制底部边界
+        print("+" + "-" * (board_size * 2) + "+")
+        
+        # 游戏结束提示
+        if not state['alive1'] or not state['alive2'] or self.game.is_terminal():
+            print("\n游戏结束！按任意键退出...")
+            input()
+            raise KeyboardInterrupt

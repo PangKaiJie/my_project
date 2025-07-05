@@ -182,6 +182,10 @@ class SnakeGUI:
     
     def _handle_snake_input(self, key):
         """处理贪吃蛇键盘输入"""
+        # 只有在人类玩家回合且游戏未结束时才处理输入
+        if not isinstance(self.current_agent, HumanAgent) or self.game_over or self.paused:
+            return
+    
         key_to_action = {
             pygame.K_UP: (-1, 0),    # 上
             pygame.K_w: (-1, 0),
@@ -252,19 +256,6 @@ class SnakeGUI:
             except Exception as e:
                 print(f"AI thinking failed: {e}")
                 self.thinking = False
-        
-        # 人类玩家回合 - 贪吃蛇需要持续移动
-        elif isinstance(self.current_agent, HumanAgent) and not self.thinking:
-            # 获取当前方向并继续移动
-            current_direction = None
-            if self.env.game.current_player == 1:
-                current_direction = self.env.game.direction1
-            else:
-                current_direction = self.env.game.direction2
-            
-            # 直接使用当前方向
-            action = current_direction
-            self._make_move(action)
     
     def draw(self):
         """绘制游戏界面"""
@@ -379,14 +370,18 @@ class SnakeGUI:
         start_x = self.board_size * self.cell_size + self.margin + 20
         status_y = 450
         
+        state = self.env.game.get_state()
+        alive1 = state['alive1']
+        alive2 = state['alive2']
+
         if self.paused:
             status_text = "Game Paused"
             color = COLORS['ORANGE']
         elif self.game_over:
-            if self.winner == 1:
+            if alive1 and not alive2:
                 status_text = "You Win!"
                 color = COLORS['GREEN']
-            elif self.winner == 2:
+            elif alive2 and not alive1:
                 status_text = "AI Wins!"
                 color = COLORS['RED']
             else:

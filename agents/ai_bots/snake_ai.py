@@ -9,12 +9,18 @@ from agents.base_agent import BaseAgent
 class SnakeAI(BaseAgent):
     """贪吃蛇AI智能体"""
     
-    def __init__(self, name="SnakeAI", player_id=1):
+    def __init__(self, name="SnakeAI", player_id=2):
         super().__init__(name, player_id)
     
     def get_action(self, observation, env):
         """获取动作"""
+
+        # 确保只处理当前玩家的回合
+        if env.game.current_player != self.player_id:
+            return None
+        
         valid_actions = env.get_valid_actions()
+
         if not valid_actions:
             return None
         
@@ -38,7 +44,7 @@ class SnakeAI(BaseAgent):
             best_action = self._move_towards_target(head, target_food, current_direction, game)
             
             # 检查这个动作是否安全
-            if self._is_safe_action(best_action, head, game):
+            if best_action and self._is_safe_action(best_action, head, game):
                 return best_action
         
         # 如果没有安全的路径到食物，寻找安全的移动
@@ -48,6 +54,9 @@ class SnakeAI(BaseAgent):
                 safe_actions.append(action)
         
         if safe_actions:
+            # 优先保持当前方向
+            if current_direction in safe_actions:
+                return current_direction
             return random.choice(safe_actions)
         
         # 如果没有安全动作，随机选择
@@ -111,11 +120,15 @@ class SnakeAI(BaseAgent):
 class SmartSnakeAI(BaseAgent):
     """更智能的贪吃蛇AI"""
     
-    def __init__(self, name="SmartSnakeAI", player_id=1):
+    def __init__(self, name="SmartSnakeAI", player_id=2):
         super().__init__(name, player_id)
     
     def get_action(self, observation, env):
         """使用A*算法寻路的贪吃蛇AI"""
+        # 确保只处理当前玩家的回合
+        if env.game.current_player != self.player_id:
+            return None
+        
         valid_actions = env.get_valid_actions()
         if not valid_actions:
             return None

@@ -172,6 +172,12 @@ class MultiGameGUI:
             self.cell_size = 25
             self.update_interval = 0.3  # 贪吃蛇需要频繁更新
 
+        # 确保环境创建成功后再初始化
+        if hasattr(self.env, 'reset'):
+            self.env.reset()
+        else:
+            raise AttributeError(f"{game_type} environment missing reset method")
+
         self.human_agent = HumanAgent(name="Human Player", player_id=1)
         self._create_ai_agent()
         self.reset_game()
@@ -298,20 +304,26 @@ class MultiGameGUI:
 
     def _handle_snake_input(self, key):
         """处理贪吃蛇键盘输入"""
-        key_to_action = {
-            pygame.K_UP: (-1, 0),  # 上
-            pygame.K_w: (-1, 0),
-            pygame.K_DOWN: (1, 0),  # 下
-            pygame.K_s: (1, 0),
-            pygame.K_LEFT: (0, -1),  # 左
-            pygame.K_a: (0, -1),
-            pygame.K_RIGHT: (0, 1),  # 右
-            pygame.K_d: (0, 1),
-        }
+        # 确保是玩家1的回合且蛇还活着
+        if (self.current_game == "snake" and isinstance(self.current_agent, HumanAgent) and self.env.game.alive1 and not self.thinking and not self.paused):
+            key_to_action = {
+                pygame.K_UP: (-1, 0),  # 上
+                pygame.K_w: (-1, 0),
+                pygame.K_DOWN: (1, 0),  # 下
+                pygame.K_s: (1, 0),
+                pygame.K_LEFT: (0, -1),  # 左
+                pygame.K_a: (0, -1),
+                pygame.K_RIGHT: (0, 1),  # 右
+                pygame.K_d: (0, 1),
+            }
 
-        if key in key_to_action:
-            action = key_to_action[key]
-            self._make_move(action)
+            if key in key_to_action:
+                new_dir = key_to_action[key]
+                current_dir = self.env.game.direction1
+                #禁止180°转弯
+                if (-new_dir[0], -new_dir[1]) != current_dir:
+                    self.env.game.direction1 = new_dir  # 直接更新方向
+                    self._make_move(new_dir)
 
     def _make_move(self, action):
         """执行移动"""
@@ -319,6 +331,15 @@ class MultiGameGUI:
             return
 
         try:
+            # 检查贪吃蛇存活
+            if self.current_game == "snake":
+                if self.env.game.current_player == 1:
+                    player_attr = 'alive1'
+                else:
+                    player_attr = 'alive2'
+                if not getattr(self.env.game, player_attr, True):
+                    return
+                
             # 执行动作
             observation, reward, terminated, truncated, info = self.env.step(action)
             self.last_move = action
@@ -355,8 +376,23 @@ class MultiGameGUI:
 
         self.last_update = current_time
 
+        # 检查游戏是否结束
+        if self.current_game == "snake":
+            # 贪吃蛇游戏结束条件：任意一方死亡
+            if not self.env.game.alive1 or not self.env.game.alive2:
+                self.game_over = True
+                self.winner = self.env.get_winner()
+                return
+        else:
+            # 五子棋游戏结束条件
+            if self.env.game.is_terminal():
+                self.game_over = True
+                self.winner = self.env.get_winner()
+                return
+
         # AI回合
-        if not isinstance(self.current_agent, HumanAgent) and self.thinking:
+        if not isinstance(self.current_agent, HumanAgent) and self.thinking and self.env.game.current_player == 2:
+            self.thinking = True
             try:
                 # 获取AI动作
                 observation = self.env._get_observation()
@@ -370,23 +406,6 @@ class MultiGameGUI:
             except Exception as e:
                 print(f"AI thinking failed: {e}")
                 self.thinking = False
-
-        # 贪吃蛇自动更新（不需要等待输入）
-        elif (
-            self.current_game == "snake"
-            and isinstance(self.current_agent, HumanAgent)
-            and not self.thinking
-        ):
-            # 贪吃蛇需要持续移动，如果没有输入就保持上一个方向
-            current_direction = None
-            if self.env.game.current_player == 1:
-                current_direction = self.env.game.direction1
-            else:
-                current_direction = self.env.game.direction2
-
-            # 直接使用当前方向作为动作
-            action = current_direction
-            self._make_move(action)
 
     def draw(self):
         """绘制游戏界面"""
@@ -483,6 +502,8 @@ class MultiGameGUI:
 
     def _draw_snake(self):
         """绘制贪吃蛇"""
+        if not hasattr(self.env, 'game') or not hasattr(self.env.game, 'board'):
+            return
         board_size = 20
 
         # 绘制游戏区域背景
@@ -587,15 +608,27 @@ class MultiGameGUI:
             status_text = "Game Paused..."
             color = COLORS["ORANGE"]
         elif self.game_over:
-            if self.winner == 1:
-                status_text = "Congratulations! You Win!"
-                color = COLORS["GREEN"]
-            elif self.winner == 2:
-                status_text = "AI Wins! Try Again!"
-                color = COLORS["RED"]
+            # 更精确地判断游戏结果
+            if self.current_game == "snake":
+                if not self.env.game.alive2 and self.env.game.alive1:
+                    status_text = "Congratulations! You Win!"
+                    color = COLORS["GREEN"]
+                elif not self.env.game.alive1 and self.env.game.alive2:
+                    status_text = "AI Wins! Try Again!"
+                    color = COLORS["RED"]
+                else:
+                    status_text = "Game Over!"
+                    color = COLORS["ORANGE"]
             else:
-                status_text = "Draw!"
-                color = COLORS["ORANGE"]
+                if self.winner == 1:
+                    status_text = "Congratulations! You Win!"
+                    color = COLORS["GREEN"]
+                elif self.winner == 2:
+                    status_text = "AI Wins! Try Again!"
+                    color = COLORS["RED"]
+                else:
+                    status_text = "Draw!"
+                    color = COLORS["ORANGE"]
         else:
             if isinstance(self.current_agent, HumanAgent):
                 if self.current_game == "gomoku":

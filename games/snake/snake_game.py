@@ -20,11 +20,12 @@ class SnakeGame(BaseGame):
             'timeout': config.GAME_CONFIGS['snake']['timeout'],
             'max_moves': config.GAME_CONFIGS['snake']['max_moves']
         }
-        super().__init__(game_config)
-        
+
         self.board_size = board_size
         self.initial_length = initial_length
         self.food_count = food_count
+
+        super().__init__(game_config)
         
         # 蛇的位置和方向
         self.snake1 = []  # 玩家1的蛇
@@ -55,6 +56,10 @@ class SnakeGame(BaseGame):
         # 初始化食物
         self.foods = []
         self._generate_foods()
+
+        # 初始化棋盘
+        self.board = np.zeros((self.board_size, self.board_size), dtype=int)
+        self._update_board()
         
         # 重置游戏状态
         self.alive1 = True
@@ -65,6 +70,10 @@ class SnakeGame(BaseGame):
         self.history = []
         
         return self.get_state()
+    
+    def is_terminal(self) -> bool:
+        """检查游戏是否结束"""
+        return not (self.alive1 or self.alive2) or self.game_state == config.GameState.ENDED
     
     def step(self, action: Tuple[int, int]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
         """
@@ -79,20 +88,38 @@ class SnakeGame(BaseGame):
             done: 是否结束
             info: 额外信息
         """
-        # 更新方向
-        if self.current_player == 1:
-            self.direction1 = action
-        else:
-            self.direction2 = action
+    
+        # 如果游戏已经结束，直接返回
+        if self.is_terminal():
+            return self.get_state(), 0, True, self._get_info()
         
-        # 移动蛇
+        # 更新步数计数器
+        self.move_count += 1
+    
+        # 更新当前玩家的方向
         if self.current_player == 1 and self.alive1:
-            self._move_snake(1)
+            self.direction1 = action  # 更新玩家1的方向
         elif self.current_player == 2 and self.alive2:
-            self._move_snake(2)
+            self.direction2 = action  # 更新玩家2的方向
+
+        # 移动蛇
+        move_success = True
+        if self.current_player == 1 and self.alive1:
+            move_success = self._move_snake(1)
+        elif self.current_player == 2 and self.alive2:
+            move_success = self._move_snake(2)
+
+        # 切换玩家
+        if self.current_player == 1:
+            self.current_player = 2
+        else:
+            self.current_player = 1
         
+        # 更新棋盘状态
+        self._update_board()
+
         # 检查游戏结束条件
-        done = self._check_game_over()
+        done = not move_success or self._check_game_over()
         
         # 计算奖励
         reward = self._calculate_reward()
@@ -182,8 +209,7 @@ class SnakeGame(BaseGame):
     
     def render(self) -> np.ndarray:
         """渲染游戏画面"""
-        state = self.get_state()
-        return state['board']
+        return self.board
     
     def clone(self) -> 'SnakeGame':
         """克隆游戏状态"""
@@ -226,7 +252,7 @@ class SnakeGame(BaseGame):
             alive = self.alive2
         
         if not alive:
-            return
+            return False
         
         # 计算新头部位置
         head = snake[0]
@@ -239,7 +265,7 @@ class SnakeGame(BaseGame):
                 self.alive1 = False
             else:
                 self.alive2 = False
-            return
+            return False
         
         # 检查自身碰撞
         if new_head in snake:
@@ -247,7 +273,7 @@ class SnakeGame(BaseGame):
                 self.alive1 = False
             else:
                 self.alive2 = False
-            return
+            return False
         
         # 检查与对方蛇的碰撞
         other_snake = self.snake2 if player == 1 else self.snake1
@@ -256,7 +282,7 @@ class SnakeGame(BaseGame):
                 self.alive1 = False
             else:
                 self.alive2 = False
-            return
+            return False
         
         # 移动蛇
         snake.insert(0, new_head)
@@ -267,6 +293,8 @@ class SnakeGame(BaseGame):
             self._generate_foods()
         else:
             snake.pop()
+
+        return True
     
     def _generate_foods(self):
         """生成食物"""
@@ -297,3 +325,20 @@ class SnakeGame(BaseGame):
                 return 1.0
         
         return 0.0 
+    
+    def _update_board(self):
+        """更新棋盘状态"""
+        self.board.fill(0)  # 清空棋盘
+    
+        # 绘制蛇1
+        for i, (x, y) in enumerate(self.snake1):
+            if 0 <= x < self.board_size and 0 <= y < self.board_size:
+                self.board[x, y] = 1 if i == 0 else 2  # 头部为1，身体为2
+        # 绘制蛇2
+        for i, (x, y) in enumerate(self.snake2):
+            if 0 <= x < self.board_size and 0 <= y < self.board_size:
+                self.board[x, y] = 3 if i == 0 else 4  # 头部为3，身体为4
+        # 绘制食物
+        for x, y in self.foods:
+            if 0 <= x < self.board_size and 0 <= y < self.board_size:
+                self.board[x, y] = 5
